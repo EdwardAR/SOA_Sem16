@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Colegio San Andrés — Sistema de Matrículas</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- LOGIN -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">🏫</div>
+      <h1>Colegio San Andrés</h1>
+      <p class="login-sub">Sistema de Matrículas</p>
+      <form id="login-form">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="login-email" placeholder="usuario@sanandres.cl" required />
+        </div>
+        <div class="form-group">
+          <label>Contraseña</label>
+          <input type="password" id="login-password" placeholder="••••••••" required />
+        </div>
+        <div id="login-error" class="error-msg hidden"></div>
+        <button type="submit" class="btn btn-primary btn-full">Ingresar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- APP SHELL -->
+  <div id="app" class="app hidden">
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-logo">🏫</span>
+        <div>
+          <div class="sidebar-title">San Andrés</div>
+          <div class="sidebar-sub">Matrículas</div>
+        </div>
+        <button class="sidebar-close" id="sidebar-close">✕</button>
+      </div>
+      <nav class="sidebar-nav" id="sidebar-nav">
+        <a href="#" data-view="dashboard"    class="nav-item active">📊 Dashboard</a>
+        <a href="#" data-view="usuarios"     class="nav-item admin-only">👥 Usuarios</a>
+        <a href="#" data-view="estudiantes"  class="nav-item">🎓 Estudiantes</a>
+        <a href="#" data-view="cursos"       class="nav-item">📚 Cursos</a>
+        <a href="#" data-view="matriculas"   class="nav-item">📋 Matrículas</a>
+        <a href="#" data-view="reportes"     class="nav-item">📈 Reportes</a>
+        <a href="#" data-view="anios"        class="nav-item admin-only">⚙️ Año Escolar</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-info" id="user-info"></div>
+        <button class="btn btn-ghost btn-full" id="logout-btn">Cerrar sesión</button>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main" id="main">
+      <header class="topbar">
+        <button class="menu-btn" id="menu-btn">☰</button>
+        <h2 class="page-title" id="page-title">Dashboard</h2>
+      </header>
+      <div class="content" id="content">
+        <!-- Vistas se renderizan aquí -->
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL GLOBAL -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Título</h3>
+        <button class="modal-close" id="modal-close">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
