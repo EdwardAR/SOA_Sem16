@@ -1,100 +1,78 @@
-# Procesos y Gestiones de un Sistema de Matrículas Escolar
+# 🏫 Sistema de Matrículas — Colegio San Andrés
 
-## 1. Gestión de Usuarios y Roles
+Sistema web de gestión de matrículas escolares con autenticación por roles, diseñado para administrar estudiantes, cursos, matrículas, pagos y reportes.
 
-Mínimo, un sistema de matrículas debe contemplar estos roles:
+## Requisitos
 
-### Roles típicos
+- **Node.js** 18+ 
+- **npm**
 
-- **Administrador**: gestiona todo el sistema.
-- **Secretaría / Gestión escolar**: maneja matrícula y pagos.
-- **Docentes**: pueden ver estudiantes inscritos y horarios.
-- **Padres o apoderados**: inscriben y actualizan información.
-- **Finanzas (opcional)**: controla pagos y deudas.
+## Instalación
 
-### Funciones clave
+```bash
+npm install
+```
 
-- Crear, editar y eliminar usuarios.
-- Gestionar permisos y accesos.
+## Configurar base de datos
 
----
+```bash
+npm run setup
+```
 
-## 2. Gestión de Estudiantes
+Esto crea las tablas y carga datos de ejemplo.
 
-Debe permitir registrar y administrar toda la información del alumno.
+## Ejecutar
 
-### Incluye
+```bash
+npm start
+```
 
-- Datos personales.
-- Datos familiares o apoderados.
-- Información médica.
-- Historial académico.
-- Documentos requeridos (PDF, fotos, certificados).
+El servidor corre en `http://localhost:3000`.
 
-### Procesos automáticos útiles
+## Credenciales de prueba
 
-- Verificación de campos obligatorios antes de permitir la matrícula.
-- Control de duplicados (RUT, DNI o documento único).
+| Rol         | Email                       | Contraseña   |
+|-------------|-----------------------------|--------------|
+| Admin       | admin@sanandres.cl          | Admin2024!   |
+| Secretaría  | secretaria@sanandres.cl     | Secre2024!   |
+| Docente     | rfuentes@sanandres.cl       | Docente2024! |
+| Finanzas    | vsoto@sanandres.cl          | Finanzas2024!|
+| Apoderado   | jherrera.apod@gmail.com     | Apod2024!    |
 
----
+## Estructura
 
-## 3. Proceso de Matrícula
+```
+src/
+├── server.js         # Servidor Express
+├── db/               # Base de datos SQLite
+│   ├── schema.sql    # Esquema de tablas
+│   ├── database.js   # Conexión
+│   ├── migrate.js    # Migración
+│   └── seed.js       # Datos de ejemplo
+├── routes/           # API REST
+│   ├── auth.js       # Login/logout
+│   ├── usuarios.js   # CRUD usuarios
+│   ├── estudiantes.js
+│   ├── cursos.js     # Cursos + horarios
+│   ├── matriculas.js # Matrículas + pagos
+│   ├── anios.js      # Años escolares + costos
+│   └── reportes.js   # Dashboard y reportes
+├── middleware/
+│   ├── auth.js       # JWT + roles
+│   └── audit.js      # Log de auditoría
+public/               # Frontend SPA
+├── index.html
+├── style.css
+└── app.js
+```
 
-El núcleo del sistema.
+## API
 
-### Flujo típico
+Todas las rutas bajo `/api/` requieren token JWT (`Authorization: Bearer <token>`).
 
-1. **Preinscripción** (formulario online o presencial).
-2. **Validación de requisitos** (documentación, edad, nivel).
-3. **Asignación de curso** según:
-   - Vacantes disponibles.
-   - Nivel solicitado.
-4. **Generación del contrato de matrícula** (PDF).
-5. **Pago de matrícula** (si aplica).
-6. **Emisión de comprobante** y confirmación final.
-
----
-
-## 4. Gestión de Cursos y Secciones
-
-Un sistema escolar debe administrar:
-
-### Entidades clave
-
-- Niveles (Inicial, Primaria, Secundaria).
-- Cursos (1°, 2°, 3°, etc.).
-- Paralelos o secciones (A, B, C).
-- Cupos disponibles.
-- Horarios por curso.
-- Docentes asignados.
-
-### Procesos automáticos
-
-- Control de vacantes.
-- Bloqueo automático cuando se alcance el límite.
-
----
-
-## 5. Reportes
-
-Necesarios para la administración.
-
-### Ejemplos
-
-- Estudiantes matriculados por curso.
-- Vacantes disponibles.
-- Pagos realizados y pendientes.
-- Estadísticas comparativas con años anteriores.
-
----
-
-## 6. Configuraciones del Año Escolar (Plus)
-
-Cada periodo escolar requiere ajustes.
-
-### Incluye
-
-- Fechas de inicio y fin de matrícula.
-- Configuración de costos.
-- Parámetros de promociones.
-- Activación o desactivación de niveles o cursos.
+- `POST /api/auth/login` — Iniciar sesión
+- `GET /api/reportes/dashboard` — Métricas principales
+- `GET /api/reportes/vacantes` — Vacantes por curso
+- `GET /api/reportes/pagos` — Reporte de pagos
+- `GET /api/reportes/comparativa` — Comparativa por años
+- `GET /api/reportes/matriculados` — Listado de matriculados

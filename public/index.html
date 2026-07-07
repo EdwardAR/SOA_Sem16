@@ -34,24 +34,30 @@
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <span class="sidebar-logo">🏫</span>
-        <div>
+        <div class="sidebar-brand">
           <div class="sidebar-title">San Andrés</div>
-          <div class="sidebar-sub">Matrículas</div>
+          <div class="sidebar-sub">Sistema de Matrículas</div>
         </div>
         <button class="sidebar-close" id="sidebar-close">✕</button>
       </div>
       <nav class="sidebar-nav" id="sidebar-nav">
-        <a href="#" data-view="dashboard"    class="nav-item active">📊 Dashboard</a>
-        <a href="#" data-view="usuarios"     class="nav-item admin-only">👥 Usuarios</a>
-        <a href="#" data-view="estudiantes"  class="nav-item">🎓 Estudiantes</a>
-        <a href="#" data-view="cursos"       class="nav-item">📚 Cursos</a>
-        <a href="#" data-view="matriculas"   class="nav-item">📋 Matrículas</a>
-        <a href="#" data-view="reportes"     class="nav-item">📈 Reportes</a>
-        <a href="#" data-view="anios"        class="nav-item admin-only">⚙️ Año Escolar</a>
+        <a href="#" data-view="dashboard"    class="nav-item active"><span class="nav-icon">📊</span> Dashboard</a>
+        <a href="#" data-view="usuarios"     class="nav-item admin-only"><span class="nav-icon">👥</span> Usuarios</a>
+        <a href="#" data-view="estudiantes"  class="nav-item"><span class="nav-icon">🎓</span> Estudiantes</a>
+        <a href="#" data-view="cursos"       class="nav-item"><span class="nav-icon">📚</span> Cursos</a>
+        <a href="#" data-view="matriculas"   class="nav-item"><span class="nav-icon">📋</span> Matrículas</a>
+        <a href="#" data-view="reportes"     class="nav-item"><span class="nav-icon">📈</span> Reportes</a>
+        <a href="#" data-view="anios"        class="nav-item admin-only"><span class="nav-icon">⚙️</span> Año Escolar</a>
       </nav>
       <div class="sidebar-footer">
-        <div class="user-info" id="user-info"></div>
-        <button class="btn btn-ghost btn-full" id="logout-btn">Cerrar sesión</button>
+        <div class="user-info-sidebar" id="user-info">
+          <div class="user-avatar" id="user-avatar">?</div>
+          <div>
+            <div class="user-name" id="user-name"></div>
+            <div class="user-role" id="user-role"></div>
+          </div>
+        </div>
+        <button class="btn-logout" id="logout-btn"><span>🚪</span> Cerrar sesión</button>
       </div>
     </aside>
 

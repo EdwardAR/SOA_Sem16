@@ -30,7 +30,40 @@ function toast(msg, type = 'success') {
   t.textContent = msg; t.className = `toast ${type} visible`;
   t.classList.remove('hidden');
   clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.add('hidden'), 3000);
+  t._timer = setTimeout(() => t.classList.add('hidden'), 3500);
+}
+
+function confirmar(msg) {
+  return new Promise(resolve => {
+    modal('Confirmar', `<p style="font-size:15px;line-height:1.6">${msg}</p>`,
+      `<button class="btn btn-success" id="btn-confirm-yes">✓ Sí, continuar</button>
+       <button class="btn btn-outline" onclick="modalClose()">Cancelar</button>`
+    );
+    $('#btn-confirm-yes').onclick = () => { modalClose(); resolve(true); };
+  });
+}
+
+function skeletonRow() {
+  return `<tr><td colspan="9"><div class="skeleton" style="height:24px;margin:4px 0"></div></td></tr>`;
+}
+
+function loadingCard() {
+  return `
+    <div class="card">
+      <div class="skeleton" style="height:20px;width:200px;margin-bottom:16px"></div>
+      ${Array(4).fill('<div class="skeleton" style="height:16px;margin-bottom:10px"></div>').join('')}
+    </div>`;
+}
+
+function loadingStats() {
+  return `<div class="stats-grid">
+    ${Array(4).fill(`<div class="stat-card"><div class="skeleton" style="height:32px;width:80px;margin-bottom:8px"></div><div class="skeleton" style="height:14px;width:120px"></div></div>`).join('')}
+  </div>`;
+}
+
+function debounce(fn, ms = 300) {
+  let timer;
+  return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
 }
 
 function escHtml(s) {
@@ -66,6 +99,7 @@ function modalClose() {
 
 $('#modal-close').onclick = modalClose;
 $('#modal-overlay').onclick = e => { if (e.target === e.currentTarget) modalClose(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') modalClose(); });
 
 // ─── Auth ──────────────────────────────────────────────────
 function login(email, password) {
@@ -109,10 +143,10 @@ function initApp() {
 }
 
 function renderUserInfo() {
-  $('#user-info').innerHTML = `
-    <div>${escHtml(USER.nombre)} ${escHtml(USER.apellido)}</div>
-    <div class="user-role">${escHtml(USER.rol)}</div>
-  `;
+  const initials = (USER.nombre?.[0] || '') + (USER.apellido?.[0] || '');
+  $('#user-avatar').textContent = initials || '?';
+  $('#user-name').textContent = `${USER.nombre} ${USER.apellido}`;
+  $('#user-role').textContent = USER.rol;
 }
 
 function renderNav() {
@@ -185,80 +219,86 @@ function navigate(view) {
 // ─── DASHBOARD ─────────────────────────────────────────────
 async function renderDashboard() {
   const c = $('#content');
-  c.innerHTML = '<p class="text-muted">Cargando dashboard...</p>';
+  c.innerHTML = loadingStats() + loadingCard() + loadingCard();
   try {
     const d = await api('/reportes/dashboard');
-    if (!d.anio) { c.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div><p>No hay año escolar activo. Configura uno en Año Escolar.</p></div>'; return; }
+    if (!d.anio) { c.innerHTML = '<div class="empty-state"><div class="empty-icon">📊</div><h4>Sin año escolar activo</h4><p>Configura un año escolar en la sección Año Escolar para comenzar.</p></div>'; return; }
 
     let nivelesHtml = '';
-    if (d.porNivel) {
-      nivelesHtml = d.porNivel.map(n => `
-        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:14px">
-          <span>${escHtml(n.nivel)}</span><strong>${n.total}</strong>
-        </div>`).join('');
+    if (d.porNivel && d.porNivel.length) {
+      nivelesHtml = '<div class="nivel-list">' + d.porNivel.map(n => `
+        <div class="nivel-row">
+          <span class="nivel-name">${escHtml(n.nivel)}</span>
+          <span class="nivel-count">${n.total}</span>
+        </div>`).join('') + '</div>';
+    } else {
+      nivelesHtml = '<p class="text-muted" style="padding:12px 0">Sin datos</p>';
     }
 
-    const ocupPct = d.totalVacantes != null && d.totalMatriculados
-      ? Math.round(d.totalMatriculados / (d.totalMatriculados + d.totalVacantes) * 100) : 0;
+    const totalCupos = (d.totalMatriculados || 0) + (d.totalVacantes || 0);
+    const ocupPct = totalCupos > 0 ? Math.round(d.totalMatriculados / totalCupos * 100) : 0;
 
     c.innerHTML = `
       <div class="stats-grid">
         <div class="stat-card success">
+          <span class="stat-icon">🎓</span>
           <div class="stat-value">${d.totalMatriculados}</div>
           <div class="stat-label">Matriculados ${d.anio}</div>
         </div>
         <div class="stat-card warning">
+          <span class="stat-icon">⏳</span>
           <div class="stat-value">${d.totalPendientes}</div>
           <div class="stat-label">Pendientes de pago</div>
         </div>
         <div class="stat-card info">
+          <span class="stat-icon">💰</span>
           <div class="stat-value">$${Number(d.recaudado||0).toLocaleString('es-CL')}</div>
           <div class="stat-label">Recaudado</div>
         </div>
         <div class="stat-card">
+          <span class="stat-icon">📋</span>
           <div class="stat-value">${d.totalVacantes}</div>
           <div class="stat-label">Vacantes disponibles</div>
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Ocupación general</div>
+        <div class="card-title">Ocupación general <span class="card-subtitle">${ocupPct}% de capacidad</span></div>
         <div class="progress-bar"><div class="progress-fill${ocupPct > 90 ? ' danger' : ocupPct > 70 ? ' warning' : ''}" style="width:${ocupPct}%"></div></div>
-        <p class="text-muted" style="margin-top:8px">${ocupPct}% de capacidad ocupada</p>
       </div>
       <div class="card">
         <div class="card-title">Matriculados por nivel</div>
-        ${nivelesHtml || '<p class="text-muted">Sin datos</p>'}
+        ${nivelesHtml}
       </div>
     `;
   } catch (err) {
-    c.innerHTML = `<div class="empty-state"><p>Error: ${escHtml(err.message)}</p></div>`;
+    c.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><h4>Error al cargar</h4><p>${escHtml(err.message)}</p></div>`;
   }
 }
 
 // ─── USUARIOS ──────────────────────────────────────────────
 async function renderUsuarios() {
   const c = $('#content');
-  c.innerHTML = '<p class="text-muted">Cargando...</p>';
+  c.innerHTML = `<div class="section-header"><h3>Usuarios</h3></div>${loadingCard()}`;
   try {
     const roles = await api('/usuarios/roles/list');
     const usuarios = await api('/usuarios');
     let rows = usuarios.map(u => `
       <tr>
-        <td>${escHtml(u.nombre)} ${escHtml(u.apellido)}</td>
+        <td><strong>${escHtml(u.nombre)} ${escHtml(u.apellido)}</strong></td>
         <td>${escHtml(u.email)}</td>
         <td>${escHtml(u.rut)}</td>
         <td>${badge(u.rol)}</td>
         <td>${badgeEstado(String(u.activo))}</td>
         <td>
           ${puede('ADMIN') ? `<button class="btn btn-sm btn-outline" onclick="editarUsuario('${u.id}')">✏️</button>` : ''}
-          ${puede('ADMIN') && u.rol !== 'ADMIN' ? `<button class="btn btn-sm btn-danger" onclick="eliminarUsuario('${u.id}')">🗑️</button>` : ''}
+          ${puede('ADMIN') && u.rol !== 'ADMIN' ? `<button class="btn btn-sm btn-outline" style="color:var(--danger);border-color:var(--danger-bg)" onclick="eliminarUsuario('${u.id}')">🗑️</button>` : ''}
         </td>
       </tr>`).join('');
 
     c.innerHTML = `
       <div class="section-header">
         <h3>Usuarios</h3>
-        ${puede('ADMIN') ? '<button class="btn btn-primary" onclick="nuevoUsuario()">+ Nuevo</button>' : ''}
+        ${puede('ADMIN') ? '<button class="btn btn-primary" onclick="nuevoUsuario()"><span>+</span> Nuevo</button>' : ''}
       </div>
       <div class="card">
         <div class="table-wrapper">
@@ -269,7 +309,7 @@ async function renderUsuarios() {
         </div>
       </div>`;
     window._roles = roles;
-  } catch (err) { c.innerHTML = `<p class="error-msg">${escHtml(err.message)}</p>`; }
+  } catch (err) { c.innerHTML = `<div class="error-msg">${escHtml(err.message)}</div>`; }
 }
 
 function nuevoUsuario() {
@@ -325,17 +365,19 @@ function editarUsuario(id) {
   }).catch(e => toast(e.message, 'danger'));
 }
 
-function eliminarUsuario(id) {
-  if (!confirm('¿Eliminar este usuario?')) return;
-  api(`/usuarios/${id}`, { method:'DELETE' }).then(() => {
-    toast('Usuario eliminado'); renderUsuarios();
-  }).catch(e => toast(e.message, 'danger'));
+async function eliminarUsuario(id) {
+  const ok = await confirmar('¿Eliminar este usuario? Se desactivará su cuenta.');
+  if (!ok) return;
+  try {
+    await api(`/usuarios/${id}`, { method:'DELETE' });
+    toast('Usuario desactivado'); renderUsuarios();
+  } catch (e) { toast(e.message, 'danger'); }
 }
 
 // ─── ESTUDIANTES ───────────────────────────────────────────
 async function renderEstudiantes() {
   const c = $('#content');
-  c.innerHTML = '<p class="text-muted">Cargando...</p>';
+  c.innerHTML = `<div class="section-header"><h3>Estudiantes</h3></div><div class="toolbar"><div class="skeleton" style="height:42px;flex:1"></div><div class="skeleton" style="height:42px;width:180px"></div></div>${loadingCard()}`;
   try {
     const q = new URLSearchParams(window.location.search).get('q') || '';
     const estado = new URLSearchParams(window.location.search).get('estado') || '';
@@ -347,34 +389,37 @@ async function renderEstudiantes() {
     if (qs) url += '?' + qs;
 
     const estudiantes = await api(url);
-    let rows = estudiantes.map(e => `
+    const busquedaActiva = q || estado;
+    let rows = estudiantes.length
+      ? estudiantes.map(e => `
       <tr>
-        <td>${escHtml(e.nombre)} ${escHtml(e.apellido)}</td>
+        <td><strong>${escHtml(e.nombre)} ${escHtml(e.apellido)}</strong></td>
         <td>${escHtml(e.rut)}</td>
-        <td>${escHtml(e.apoderado_nombre||'—')}</td>
-        <td>${escHtml(e.apoderado_tel||'—')}</td>
+        <td>${escHtml(e.apoderado_nombre || '—')}</td>
+        <td>${escHtml(e.apoderado_tel || '—')}</td>
         <td>${badgeEstado(e.estado)}</td>
         <td>
           <button class="btn btn-sm btn-outline" onclick="verEstudiante('${e.id}')">👁️</button>
           ${puede('ADMIN','SECRETARIA','APODERADO') ? `<button class="btn btn-sm btn-outline" onclick="editarEstudiante('${e.id}')">✏️</button>` : ''}
         </td>
-      </tr>`).join('');
+      </tr>`).join('')
+      : `<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-muted)">${busquedaActiva ? 'Sin resultados para esta búsqueda' : 'No hay estudiantes registrados'}</td></tr>`;
 
     c.innerHTML = `
       <div class="section-header">
         <h3>Estudiantes</h3>
-        ${puede('ADMIN','SECRETARIA','APODERADO') ? '<button class="btn btn-primary" onclick="nuevoEstudiante()">+ Nuevo</button>' : ''}
+        ${puede('ADMIN','SECRETARIA','APODERADO') ? '<button class="btn btn-primary" onclick="nuevoEstudiante()"><span>+</span> Nuevo</button>' : ''}
       </div>
       <div class="toolbar">
         <input class="search-input" placeholder="Buscar nombre, apellido o RUT..." id="search-est" value="${escHtml(q)}" onkeyup="filtrarEstudiantes()"/>
         <select id="filter-est-estado" onchange="filtrarEstudiantes()">
           <option value="">Todos los estados</option>
-          <option value="PREINSCRITO" ${estado==='PREINSCRITO'?'selected':''}>PREINSCRITO</option>
-          <option value="MATRICULADO" ${estado==='MATRICULADO'?'selected':''}>MATRICULADO</option>
-          <option value="RETIRADO" ${estado==='RETIRADO'?'selected':''}>RETIRADO</option>
+          <option value="PREINSCRITO" ${estado==='PREINSCRITO'?'selected':''}>Pendiente</option>
+          <option value="MATRICULADO" ${estado==='MATRICULADO'?'selected':''}>Matriculado</option>
+          <option value="RETIRADO" ${estado==='RETIRADO'?'selected':''}>Retirado</option>
         </select>
       </div>
-      <div class="card">
+      <div class="card" style="padding:0">
         <div class="table-wrapper">
           <table>
             <thead><tr><th>Nombre</th><th>RUT</th><th>Apoderado</th><th>Tel. Apoderado</th><th>Estado</th><th>Acciones</th></tr></thead>
@@ -382,10 +427,10 @@ async function renderEstudiantes() {
           </table>
         </div>
       </div>`;
-  } catch (err) { c.innerHTML = `<p class="error-msg">${escHtml(err.message)}</p>`; }
+  } catch (err) { c.innerHTML = `<div class="error-msg">${escHtml(err.message)}</div>`; }
 }
 
-function filtrarEstudiantes() {
+const filtrarEstudiantes = debounce(() => {
   const params = new URLSearchParams();
   const q = $('#search-est').value;
   const estado = $('#filter-est-estado').value;
@@ -395,7 +440,7 @@ function filtrarEstudiantes() {
   const url = window.location.pathname + (qs ? '?' + qs : '');
   window.history.replaceState({}, '', url);
   renderEstudiantes();
-}
+});
 
 function nuevoEstudiante() {
   modal('Nuevo Estudiante', `
@@ -524,7 +569,7 @@ function editarEstudiante(id) {
 // ─── CURSOS ──────────────────────────────────────────────────
 async function renderCursos() {
   const c = $('#content');
-  c.innerHTML = '<p class="text-muted">Cargando...</p>';
+  c.innerHTML = `<div class="section-header"><h3>Cursos</h3></div>${loadingCard()}`;
   try {
     const cursos = await api('/cursos');
     const niveles = await api('/cursos/niveles/list');
@@ -532,47 +577,45 @@ async function renderCursos() {
     window._niveles = niveles;
     window._grados = grados;
 
-    let rows = cursos.map(cur => `
-      <tr>
+    let rows = cursos.length
+      ? cursos.map(cur => {
+      const pct = cur.cupos_max > 0 ? Math.round(cur.cupos_ocupados/cur.cupos_max*100) : 0;
+      const cls = pct > 90 ? ' danger' : pct > 70 ? ' warning' : '';
+      return `<tr>
         <td>${badge(cur.nivel)}</td>
-        <td>${escHtml(cur.grado)}</td>
+        <td><strong>${escHtml(cur.grado)}</strong></td>
         <td>${escHtml(cur.seccion)}</td>
         <td>${cur.cupos_max}</td>
         <td>${cur.cupos_ocupados}</td>
         <td>
-          <div class="progress-bar">
-            <div class="progress-fill${(cur.cupos_ocupados/cur.cupos_max) > 0.9 ? ' danger' : (cur.cupos_ocupados/cur.cupos_max) > 0.7 ? ' warning' : ''}"
-                 style="width:${Math.round(cur.cupos_ocupados/cur.cupos_max*100)}%">
-            </div>
+          <div class="occ-bar">
+            <div class="progress-bar"><div class="progress-fill${cls}" style="width:${pct}%"></div></div>
+            <small style="font-weight:600;color:${pct>90?'var(--danger)':pct>70?'var(--warning)':'var(--text-muted)'}">${pct}%</small>
           </div>
-          <small>${Math.round(cur.cupos_ocupados/cur.cupos_max*100)}%</small>
         </td>
-        <td>${cur.docente || '—'}</td>
+        <td>${cur.docente || '<span class="text-muted">—</span>'}</td>
         <td>${badgeEstado(String(cur.activo))}</td>
         <td>
           <button class="btn btn-sm btn-outline" onclick="verCurso('${cur.id}')">👁️</button>
           ${puede('ADMIN','SECRETARIA') ? `<button class="btn btn-sm btn-outline" onclick="editarCurso('${cur.id}')">✏️</button>` : ''}
         </td>
-      </tr>`).join('');
+      </tr>`;}).join('')
+      : '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted)">No hay cursos registrados</td></tr>';
 
     c.innerHTML = `
       <div class="section-header">
         <h3>Cursos</h3>
-        ${puede('ADMIN') ? '<button class="btn btn-primary" onclick="nuevoCurso()">+ Nuevo</button>' : ''}
+        ${puede('ADMIN') ? '<button class="btn btn-primary" onclick="nuevoCurso()"><span>+</span> Nuevo</button>' : ''}
       </div>
-      <div class="card">
+      <div class="card" style="padding:0">
         <div class="table-wrapper">
           <table>
             <thead><tr><th>Nivel</th><th>Grado</th><th>Sección</th><th>Cupos</th><th>Ocupados</th><th>Ocupación</th><th>Docente</th><th>Activo</th><th>Acciones</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Agregar horario a curso</div>
-        <p class="text-muted">Selecciona un curso y agrega horarios desde la vista de detalle 👁️</p>
       </div>`;
-  } catch (err) { c.innerHTML = `<p class="error-msg">${escHtml(err.message)}</p>`; }
+  } catch (err) { c.innerHTML = `<div class="error-msg">${escHtml(err.message)}</div>`; }
 }
 
 function nuevoCurso() {
@@ -672,7 +715,7 @@ function editarCurso(id) {
 // ─── MATRÍCULAS ──────────────────────────────────────────────
 async function renderMatriculas() {
   const c = $('#content');
-  c.innerHTML = '<p class="text-muted">Cargando...</p>';
+  c.innerHTML = `<div class="section-header"><h3>Matrículas</h3></div>${loadingCard()}`;
   try {
     const busqueda = new URLSearchParams(window.location.search);
     const anio = busqueda.get('anio') || '';
@@ -686,30 +729,32 @@ async function renderMatriculas() {
     if (qs) url += '?' + qs;
 
     const mats = await api(url);
-    let rows = mats.map(m => `
+    let rows = mats.length
+      ? mats.map(m => `
       <tr>
-        <td>${escHtml(m.estudiante)}</td>
+        <td><strong>${escHtml(m.estudiante)}</strong></td>
         <td>${escHtml(m.estudiante_rut)}</td>
         <td>${escHtml(m.curso)}</td>
         <td>${badgeEstado(m.estado)}</td>
-        <td>$${Number(m.monto||0).toLocaleString('es-CL')}</td>
+        <td><strong>$${Number(m.monto||0).toLocaleString('es-CL')}</strong></td>
         <td>${badgeEstado(m.pago_estado)}</td>
-        <td>${escHtml(m.medio_pago||'—')}</td>
-        <td>${m.fecha_matricula ? escHtml(m.fecha_matricula) : '—'}</td>
-        <td>
+        <td>${escHtml(m.medio_pago || '—')}</td>
+        <td>${m.fecha_matricula ? escHtml(m.fecha_matricula) : '<span class="text-muted">—</span>'}</td>
+        <td style="white-space:nowrap">
           <button class="btn btn-sm btn-outline" onclick="verMatricula('${m.id}')">👁️</button>
           ${m.estado === 'PENDIENTE_PAGO' && puede('ADMIN','SECRETARIA','FINANZAS') ? `<button class="btn btn-sm btn-success" onclick="confirmarPago('${m.id}')">💰 Pagar</button>` : ''}
-          ${m.estado !== 'ANULADA' && puede('ADMIN') ? `<button class="btn btn-sm btn-danger" onclick="anularMatricula('${m.id}')">🚫</button>` : ''}
+          ${m.estado !== 'ANULADA' && puede('ADMIN') ? `<button class="btn btn-sm btn-outline" style="color:var(--danger);border-color:var(--danger-bg)" onclick="anularMatricula('${m.id}')">🚫</button>` : ''}
         </td>
-      </tr>`).join('');
+      </tr>`).join('')
+      : '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted)">No hay matrículas registradas</td></tr>';
 
     c.innerHTML = `
       <div class="section-header">
         <h3>Matrículas</h3>
-        ${puede('ADMIN','SECRETARIA','APODERADO') ? '<button class="btn btn-primary" onclick="nuevaMatricula()">+ Nueva</button>' : ''}
+        ${puede('ADMIN','SECRETARIA','APODERADO') ? '<button class="btn btn-primary" onclick="nuevaMatricula()"><span>+</span> Nueva</button>' : ''}
       </div>
       <div class="toolbar">
-        <input class="search-input" placeholder="Filtrar por año" id="filter-anio" value="${escHtml(anio)}" onkeyup="filtrarMatriculas()"/>
+        <input class="search-input" placeholder="Año (ej: 2025)" id="filter-anio" value="${escHtml(anio)}" onkeyup="filtrarMatriculas()"/>
         <select id="filter-estado" onchange="filtrarMatriculas()">
           <option value="">Todos los estados</option>
           <option value="PENDIENTE_PAGO" ${estado==='PENDIENTE_PAGO'?'selected':''}>Pendiente pago</option>
@@ -717,7 +762,7 @@ async function renderMatriculas() {
           <option value="ANULADA" ${estado==='ANULADA'?'selected':''}>Anulada</option>
         </select>
       </div>
-      <div class="card">
+      <div class="card" style="padding:0">
         <div class="table-wrapper">
           <table>
             <thead><tr><th>Estudiante</th><th>RUT</th><th>Curso</th><th>Estado</th><th>Monto</th><th>Pago</th><th>Medio</th><th>Fecha</th><th>Acciones</th></tr></thead>
@@ -725,10 +770,10 @@ async function renderMatriculas() {
           </table>
         </div>
       </div>`;
-  } catch (err) { c.innerHTML = `<p class="error-msg">${escHtml(err.message)}</p>`; }
+  } catch (err) { c.innerHTML = `<div class="error-msg">${escHtml(err.message)}</div>`; }
 }
 
-function filtrarMatriculas() {
+const filtrarMatriculas = debounce(() => {
   const params = new URLSearchParams();
   const anio = $('#filter-anio').value;
   const estado = $('#filter-estado').value;
@@ -737,7 +782,7 @@ function filtrarMatriculas() {
   const qs = params.toString();
   window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''));
   renderMatriculas();
-}
+});
 
 async function nuevaMatricula() {
   try {
@@ -812,83 +857,90 @@ function confirmarPago(matriculaId) {
   };
 }
 
-function anularMatricula(id) {
-  if (!confirm('¿Estás seguro de anular esta matrícula?')) return;
-  api(`/matriculas/${id}/anular`, { method:'POST' }).then(() => {
+async function anularMatricula(id) {
+  const ok = await confirmar('¿Anular esta matrícula? Se liberará el cupo en el curso y el estudiante volverá a estado PREINSCRITO.');
+  if (!ok) return;
+  try {
+    await api(`/matriculas/${id}/anular`, { method:'POST' });
     toast('Matrícula anulada'); renderMatriculas();
-  }).catch(e => toast(e.message, 'danger'));
+  } catch (e) { toast(e.message, 'danger'); }
 }
 
 // ─── REPORTES ──────────────────────────────────────────────
 async function renderReportes() {
   const c = $('#content');
-  c.innerHTML = '<p class="text-muted">Cargando...</p>';
+  c.innerHTML = `<div class="section-header"><h3>Reportes</h3></div>${loadingStats()}${loadingCard()}${loadingCard()}`;
   try {
     const d = await api('/reportes/dashboard');
     const vacantes = await api('/reportes/vacantes');
     const pagos = await api('/reportes/pagos');
 
-    let vacRows = vacantes.map(v => `
+    let vacRows = vacantes.length
+      ? vacantes.map(v => `
       <tr>
         <td>${badge(v.nivel)}</td>
-        <td>${escHtml(v.grado)}</td>
+        <td><strong>${escHtml(v.grado)}</strong></td>
         <td>${escHtml(v.seccion)}</td>
         <td>${v.cupos_max}</td>
         <td>${v.cupos_ocupados}</td>
-        <td><strong>${v.vacantes_disponibles}</strong></td>
+        <td><strong style="color:${v.vacantes_disponibles > 0 ? 'var(--success)' : 'var(--danger)'}">${v.vacantes_disponibles}</strong></td>
         <td>${v.ocupacion_pct}%</td>
-        <td>${escHtml(v.docente||'—')}</td>
-      </tr>`).join('');
+        <td>${escHtml(v.docente || '—')}</td>
+      </tr>`).join('')
+      : '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted)">Sin datos</td></tr>';
 
-    let pagoRows = (pagos.filas||[]).map(p => `
+    let pagoRows = (pagos.filas || []).length
+      ? pagos.filas.map(p => `
       <tr>
-        <td>${escHtml(p.estudiante)}</td>
+        <td><strong>${escHtml(p.estudiante)}</strong></td>
         <td>${escHtml(p.curso)}</td>
-        <td>$${Number(p.monto).toLocaleString('es-CL')}</td>
+        <td><strong>$${Number(p.monto).toLocaleString('es-CL')}</strong></td>
         <td>${badgeEstado(p.estado)}</td>
-        <td>${escHtml(p.medio_pago||'—')}</td>
-        <td>${p.fecha_pago||'—'}</td>
-      </tr>`).join('');
+        <td>${escHtml(p.medio_pago || '—')}</td>
+        <td>${p.fecha_pago || '<span class="text-muted">—</span>'}</td>
+      </tr>`).join('')
+      : '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text-muted)">Sin pagos registrados</td></tr>';
 
     c.innerHTML = `
       <div class="section-header"><h3>Reportes</h3></div>
       <div class="stats-grid">
-        <div class="stat-card success"><div class="stat-value">${d.totalMatriculados||0}</div><div class="stat-label">Matriculados</div></div>
-        <div class="stat-card warning"><div class="stat-value">$${Number(d.recaudado||0).toLocaleString('es-CL')}</div><div class="stat-label">Recaudado</div></div>
-        <div class="stat-card info"><div class="stat-value">$${Number(pagos.totalPendiente||0).toLocaleString('es-CL')}</div><div class="stat-label">Pendiente</div></div>
-        <div class="stat-card"><div class="stat-value">${d.totalVacantes||0}</div><div class="stat-label">Vacantes</div></div>
+        <div class="stat-card success"><span class="stat-icon">🎓</span><div class="stat-value">${d.totalMatriculados||0}</div><div class="stat-label">Matriculados</div></div>
+        <div class="stat-card info"><span class="stat-icon">💰</span><div class="stat-value">$${Number(d.recaudado||0).toLocaleString('es-CL')}</div><div class="stat-label">Recaudado</div></div>
+        <div class="stat-card warning"><span class="stat-icon">⏳</span><div class="stat-value">$${Number(pagos.totalPendiente||0).toLocaleString('es-CL')}</div><div class="stat-label">Pendiente</div></div>
+        <div class="stat-card"><span class="stat-icon">📋</span><div class="stat-value">${d.totalVacantes||0}</div><div class="stat-label">Vacantes</div></div>
       </div>
       <div class="card">
         <div class="card-title">Vacantes disponibles</div>
         <div class="table-wrapper">
           <table>
-            <thead><tr><th>Nivel</th><th>Grado</th><th>Sección</th><th>Cupos</th><th>Ocupados</th><th>Disponibles</th><th>% Ocup.</th><th>Docente</th></tr></thead>
-            <tbody>${vacRows || '<tr><td colspan="8" class="text-muted">Sin datos</td></tr>'}</tbody>
+            <thead><tr><th>Nivel</th><th>Grado</th><th>Sección</th><th>Cupos</th><th>Ocupados</th><th>Disponibles</th><th>%</th><th>Docente</th></tr></thead>
+            <tbody>${vacRows}</tbody>
           </table>
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Pagos <span class="text-muted">(Recaudado: $${Number(pagos.totalRecaudado||0).toLocaleString('es-CL')} · Pendiente: $${Number(pagos.totalPendiente||0).toLocaleString('es-CL')})</span></div>
+        <div class="card-title">Pagos <span class="card-subtitle">Recaudado: $${Number(pagos.totalRecaudado||0).toLocaleString('es-CL')} · Pendiente: $${Number(pagos.totalPendiente||0).toLocaleString('es-CL')}</span></div>
         <div class="table-wrapper">
           <table>
             <thead><tr><th>Estudiante</th><th>Curso</th><th>Monto</th><th>Estado</th><th>Medio</th><th>Fecha</th></tr></thead>
-            <tbody>${pagoRows || '<tr><td colspan="6" class="text-muted">Sin pagos registrados</td></tr>'}</tbody>
+            <tbody>${pagoRows}</tbody>
           </table>
         </div>
       </div>`;
-  } catch (err) { c.innerHTML = `<p class="error-msg">${escHtml(err.message)}</p>`; }
+  } catch (err) { c.innerHTML = `<div class="error-msg">${escHtml(err.message)}</div>`; }
 }
 
 // ─── AÑO ESCOLAR ─────────────────────────────────────────
 async function renderAnios() {
   const c = $('#content');
-  c.innerHTML = '<p class="text-muted">Cargando...</p>';
+  c.innerHTML = `<div class="section-header"><h3>Años Escolares</h3></div>${loadingCard()}`;
   try {
     const anios = await api('/anios');
     const niveles = await api('/cursos/niveles/list');
     window._niveles = niveles;
 
-    let rows = anios.map(a => `
+    let rows = anios.length
+      ? anios.map(a => `
       <tr>
         <td><strong>${a.anio}</strong></td>
         <td>${escHtml(a.fecha_inicio_matricula)}</td>
@@ -898,19 +950,20 @@ async function renderAnios() {
         <td>${a.nota_min_aprobacion}</td>
         <td>${badgeEstado(String(a.activo))}</td>
         <td>${a.publicado ? badge('Sí', 'green') : badge('No', 'gray')}</td>
-        <td>
+        <td style="white-space:nowrap">
           <button class="btn btn-sm btn-outline" onclick="verAnio(${a.id})">👁️</button>
-          <button class="btn btn-sm btn-outline" onclick="editarAnio(${a.id})">✏️</button>
-          ${!a.activo ? `<button class="btn btn-sm btn-success" onclick="publicarAnio(${a.id})">📢 Publicar</button>` : ''}
+          ${puede('ADMIN') ? `<button class="btn btn-sm btn-outline" onclick="editarAnio(${a.id})">✏️</button>` : ''}
+          ${!a.activo && puede('ADMIN') ? `<button class="btn btn-sm btn-success" onclick="publicarAnio(${a.id})">📢 Publicar</button>` : ''}
         </td>
-      </tr>`).join('');
+      </tr>`).join('')
+      : '<tr><td colspan="9" style="text-align:center;padding:40px;color:var(--text-muted)">No hay años escolares configurados</td></tr>';
 
     c.innerHTML = `
       <div class="section-header">
         <h3>Años Escolares</h3>
-        ${puede('ADMIN') ? '<button class="btn btn-primary" onclick="nuevoAnio()">+ Nuevo</button>' : ''}
+        ${puede('ADMIN') ? '<button class="btn btn-primary" onclick="nuevoAnio()"><span>+</span> Nuevo</button>' : ''}
       </div>
-      <div class="card">
+      <div class="card" style="padding:0">
         <div class="table-wrapper">
           <table>
             <thead><tr><th>Año</th><th>Inicio Mat.</th><th>Fin Mat.</th><th>Inicio Clases</th><th>Fin Año</th><th>Nota Mín</th><th>Activo</th><th>Publicado</th><th>Acciones</th></tr></thead>
@@ -918,7 +971,7 @@ async function renderAnios() {
           </table>
         </div>
       </div>`;
-  } catch (err) { c.innerHTML = `<p class="error-msg">${escHtml(err.message)}</p>`; }
+  } catch (err) { c.innerHTML = `<div class="error-msg">${escHtml(err.message)}</div>`; }
 }
 
 function nuevoAnio() {
@@ -1045,11 +1098,13 @@ function editarAnio(id) {
   });
 }
 
-function publicarAnio(id) {
-  if (!confirm('¿Publicar y activar este año escolar? Esto desactivará el año actual.')) return;
-  api(`/anios/${id}/publicar`, { method:'POST' }).then(() => {
+async function publicarAnio(id) {
+  const ok = await confirmar('¿Publicar y activar este año escolar? Se desactivará cualquier otro año activo.');
+  if (!ok) return;
+  try {
+    await api(`/anios/${id}/publicar`, { method:'POST' });
     toast('Año escolar publicado y activado'); renderAnios();
-  }).catch(e => toast(e.message, 'danger'));
+  } catch (e) { toast(e.message, 'danger'); }
 }
 
 // ─── Boot ───────────────────────────────────────────────────
