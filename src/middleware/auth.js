@@ -17,7 +17,9 @@ function authMiddleware(req, res, next) {
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!roles.includes(req.user.rol)) {
-      return res.status(403).json({ error: 'Acceso denegado para este rol' });
+      return res.status(403).json({
+        error: `Acción no autorizada. Se requiere uno de estos roles: ${roles.join(', ')}. Tu rol actual es: ${req.user.rol}`
+      });
     }
     next();
   };
